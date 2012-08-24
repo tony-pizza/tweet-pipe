@@ -42,7 +42,9 @@ function TweetPipe (oauth, options) {
 
 }
 
-TweetPipe.prototype.stream = function (method, params, callback) {
+// returns the request stream
+// just the raw, [un-deflated,] unparsed data
+TweetPipe.prototype.raw_stream = function (method, params, callback) {
   if (typeof params === 'function') {
     callback = params;
     params = null;
@@ -75,6 +77,22 @@ TweetPipe.prototype.stream = function (method, params, callback) {
   }
 
   var url = stream_base + '/' + escape(method) + '.json';
+
+  var req = request({
+    url: url,
+    method: http_method,
+    oauth: this.options.oauth,
+    headers: this.options.headers,
+    form: (http_method === 'POST' ? params : false)
+  });
+
+  if ( typeof callback === 'function' ) callback(req);
+
+  return req;
+
+};
+
+TweetPipe.prototype.stream = function (method, params, callback) {
 
   var stream = es.through(function (data) {
     // https://dev.twitter.com/docs/streaming-apis/messages
@@ -114,13 +132,7 @@ TweetPipe.prototype.stream = function (method, params, callback) {
     return true;
   });
 
-  var req = request({
-    url: url,
-    method: http_method,
-    oauth: this.options.oauth,
-    headers: this.options.headers,
-    form: (http_method === 'POST' ? params : false)
-  });
+  var req = this.raw_stream(method, params);
 
   req.on('error', function (error) {
     stream.emit('error', error);
@@ -139,16 +151,30 @@ TweetPipe.prototype.stream = function (method, params, callback) {
   // allow user to catch emitted events
   if ( typeof callback === 'function' ) callback(stream);
 
-  var pipeline = [
+  return this.options.gzip ? es.pipeline(
     req,
-    (this.options.gzip ? zlib.createUnzip() : null),
-    es.split(),
-    es.parse(),
+    this.unzip(),
+    this.parse(),
     stream
-  ].filter(function (s) { return s !== null; });
+  ) : es.pipeline(
+    req,
+    this.parse(),
+    stream
+  );
+};
 
-  return es.pipeline.apply(null, pipeline);
+// convenienve method for deflating gzipped streams
+TweetPipe.prototype.deflate =
+TweetPipe.prototype.unzip = function () {
+  return zlib.createUnzip();
+};
 
+// convenienve method for converting to JSON
+TweetPipe.prototype.parse = function () {
+  return es.pipeline(
+    es.split(),
+    es.parse()
+  );
 };
 
 module.exports = TweetPipe;

@@ -2,6 +2,7 @@ TweetPipe
 ==========
 
 Connect to Twitter's Streaming API via Node.js Streams (using EventStreams)
+https://github.com/peeinears/tweet-pipe
 
 ## :)
 
@@ -20,11 +21,54 @@ Connect to Twitter's Streaming API via Node.js Streams (using EventStreams)
 
 ## Put some tweets in your pipe and do stuff with them
 
-*Example:* Track the popularity of various Mexican cuisine for one minute
+### Basic usage
+
+``` js
+var TweetPipe = require('tweet-pipe');
+
+var tp = new TweetPipe({
+  consumer_key: 'yourconsumerkey',
+  consumer_secret: 'yourconsumersecret',
+  token: 'youraccesstoken',
+  token_secret: 'youraccesstokensecret'
+});
+
+tp.stream('statuses/filter', params, function (stream) {
+  // hook to emitted events and do stuff
+  stream.on('tweet', function (tweet) { // do stuff with tweet });
+});
+```
+
+### Supported events
+
+Refer to: https://dev.twitter.com/docs/streaming-apis/messages
+
+`tweet`, `delete`, `limit`, `scrub\_geo`, `status\_withheld`, `user\_withheld`, `friends`, `event`
+
+`all`: emits data chunks of all types
+
+
+### Raw streams and convenience methods
+
+You can also access the raw, [un-deflated,] unparsed stream with `tp.raw\_stream(method, params, callback)`. 
+Note that the callback here is on the `Request` object -- the above events are not emitted.
+
+If you're piping this stream elsewhere you can use `tp.unzip()` to deflate gzipped streams and `tp.parse()` to convert the stream into JSON.
+
+``` js
+tp.raw_stream('statuses/sample')
+  .pipe(tp.unzip())
+  .pipe(tp.parse())
+  .pipe(someStreamThatHandlesJSON);
+```
+
+### Example
+
+Track the popularity of various Mexican cuisine for one minute:
 
 ``` js
 
-var TweetPipe = require('./index.js')
+var TweetPipe = require('tweet-pipe')
   , es = require('event-stream');
 
 var oauth = {
