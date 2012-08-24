@@ -35,7 +35,9 @@ var tp = new TweetPipe({
 
 tp.stream('statuses/filter', params, function (stream) {
   // hook to emitted events and do stuff
-  stream.on('tweet', function (tweet) { // do stuff with tweet });
+  stream.on('tweet', function (tweet) {
+    // do stuff with tweet
+  });
 });
 ```
 
@@ -43,14 +45,14 @@ tp.stream('statuses/filter', params, function (stream) {
 
 Refer to: https://dev.twitter.com/docs/streaming-apis/messages
 
-`tweet`, `delete`, `limit`, `scrub\_geo`, `status\_withheld`, `user\_withheld`, `friends`, `event`
+`'tweet'`, `'delete'`, `'limit'`, `'scrub_geo'`, `'status_withheld'`, `'user_withheld'`, `'friends'`, `'event'`
 
-`all`: emits data chunks of all types
+`'all'` emits data chunks of all types
 
 
 ### Raw streams and convenience methods
 
-You can also access the raw, [un-deflated,] unparsed stream with `tp.raw\_stream(method, params, callback)`. 
+You can also access the raw, [un-deflated,] unparsed stream with `tp.raw_stream(method, params, callback)`. 
 Note that the callback here is on the `Request` object -- the above events are not emitted.
 
 If you're piping this stream elsewhere you can use `tp.unzip()` to deflate gzipped streams and `tp.parse()` to convert the stream into JSON.
