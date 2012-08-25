@@ -70,8 +70,7 @@ Track the popularity of various Mexican cuisine for one minute:
 
 ``` js
 
-var TweetPipe = require('tweet-pipe')
-  , es = require('event-stream');
+var TweetPipe = require('tweet-pipe');
 
 var oauth = {
   consumer_key: 'yourconsumerkey',
