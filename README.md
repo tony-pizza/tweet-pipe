@@ -23,6 +23,8 @@ https://github.com/peeinears/tweet-pipe
 
 ### Basic usage
 
+#### Setup
+
 ``` js
 var TweetPipe = require('tweet-pipe');
 
@@ -32,11 +34,67 @@ var tp = new TweetPipe({
   token: 'youraccesstoken',
   token_secret: 'youraccesstokensecret'
 });
+```
 
-tp.stream('statuses/filter', params, function (stream) {
+#### Streamin'
+
+tp.stream(method [, params] [, data_events] [, callback(stream)])
+
+``` js
+tp.stream('statuses/sample'); // returns a Stream that emits tweet JSON
+```
+
+That won't really do anything, but from there you can pipe the tweets into other streams that do stuff:
+
+``` js
+tp.stream('statuses/sample')
+  .pipe(tp.stringify())
+  .pipe(process.stdout);
+```
+
+#### With params
+
+``` js
+var params = {
+  'track': ['ball', 'rim', 'john'],
+  'locations': ['-122.75,36.8,-121.75,37.8', '-74,40,-73,41'], // SF and NY
+  'follow': ['justinbieber', 'nodejs']
+};
+tp.stream('statuses/filter', params); // will emit tweets that match any one of the params
+```
+
+[All parameters](https://dev.twitter.com/docs/streaming-apis/parameters)
+
+#### With a callback
+
+``` js
+tp.stream('statuses/sample', function (stream) {
   // hook to emitted events and do stuff
   stream.on('tweet', function (tweet) {
     // do stuff with tweet
+  });
+});
+```
+
+#### Change what gets emitted as `'data'`
+
+By default, `tp.stream()` will only pipe out tweets (as JSON). 
+You can change this so that other message types are emitted as `'data'`.
+
+``` js
+// pipe out 'delete' and 'scrub_geo' messages as well
+tp.stream('statuses/sample', ['tweet', 'delete', 'scrub_geo']);
+
+// pipe out all message types
+tp.stream('statuses/sample', ['all']);
+
+// don't pipe anything out
+tp.stream('statuses/sample', false);
+
+// pipe out only tweet text
+tp.stream('statuses/sample', false, function (stream) {
+  stream.on('tweet', function (tweet) {
+    stream.emit('data', tweet.text);
   });
 });
 ```
@@ -55,13 +113,16 @@ Refer to: https://dev.twitter.com/docs/streaming-apis/messages
 You can also access the raw, [un-deflated,] unparsed stream with `tp.raw_stream(method, params, callback)`. 
 Note that the callback here is on the `Request` object -- the above events are not emitted.
 
-If you're piping this stream elsewhere you can use `tp.unzip()` to deflate gzipped streams and `tp.parse()` to convert the stream into JSON.
+If you're piping this stream elsewhere you can use 
+`tp.unzip()` to deflate gzipped streams and 
+`tp.parse()` to convert the stream into JSON.
+`tp.stringify()` is also available and can be useful with `tp.stream()`.
 
 ``` js
 tp.raw_stream('statuses/sample')
   .pipe(tp.unzip())
-  .pipe(tp.parse())
-  .pipe(someStreamThatHandlesJSON);
+  .pipe(tp.parse()) // to JSON
+  .pipe(tp.stringify()); // woo, back to a string!
 ```
 
 ### Example
