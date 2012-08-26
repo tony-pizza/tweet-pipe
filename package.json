@@ -1,6 +1,6 @@
 {
   "name": "tweet-pipe",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "parse twitter's streaming api with nodejs streams",
   "main": "index.js",
   "scripts": {
