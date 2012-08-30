@@ -12,7 +12,7 @@ var tp = new TweetPipe(oauth);
 var tacos = burritos = enchiladas = 0;
 
 var params = { track: ['taco', 'burrito', 'enchilada'] };
-tp.stream('statuses/filter', params, function (stream) {
+tp.stream('statuses/filter', params, false, function (stream) {
 
   stream.on('tweet', function (tweet) {
     if (tweet.text.search(/\btacos?\b/i) >= 0) tacos++;
