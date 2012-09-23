@@ -43,8 +43,9 @@ function TweetPipe (oauth, options) {
 }
 
 // returns the request stream
-// just the raw, [un-deflated,] unparsed data
+// just the raw, [un-inflated,] unparsed data
 TweetPipe.prototype.raw_stream = function (method, params, callback) {
+
   if (typeof params === 'function') {
     callback = params;
     params = null;
@@ -92,11 +93,67 @@ TweetPipe.prototype.raw_stream = function (method, params, callback) {
 
 };
 
-// helper method for emitting data according to data_events
-function __emit (stream, event, data, data_events) {
-  stream.emit(event, data);
-  if (data_events.indexOf(event) >= 0) stream.emit('data', data);
-}
+// returns a through stream that takes json and emits desired twitter messages
+TweetPipe.prototype.filter = function (data_events) {
+
+  if (typeof data_events === 'undefined') {
+    data_events = ['tweet'];
+  }
+
+  // don't emit anything as 'data' if data_events is null or falsy
+  if (!data_events) data_events = [];
+
+  // don't allow 'all' and other events
+  if (data_events.indexOf('all') >= 0) data_events = ['all'];
+
+  // helper method for emitting data according to data_events
+  var emit = function (event, data) {
+    this.emit(event, data);
+    if (data_events.indexOf(event) >= 0) this.emit('data', data);
+  };
+
+  var filter = es.through(function (data) {
+    // https://dev.twitter.com/docs/streaming-apis/messages
+
+    // to catch all
+    emit.call(this, 'all', data);
+
+    // Public stream
+    if (data['delete']) {
+      emit.call(this, 'delete', data['delete']);
+
+    } else if (data['limit']) {
+      emit.call(this, 'limit', data['limit']);
+
+    } else if (data['scrub_geo']) {
+      emit.call(this, 'scrub_geo', data['scrub_geo']);
+
+    } else if (data['status_withheld']) {
+      emit.call(this, 'status_withheld', data['status_withheld']);
+
+    } else if (data['user_withheld']) {
+      emit.call(this, 'user_withheld', data['user_withheld']);
+
+    // User stream
+    } else if (data['friends']) {
+      emit.call(this, 'friends', data['friends']);
+
+    } else if (data['event']) {
+      emit.call(this, 'event', data['event']);
+
+    // TODO: support site stream messages
+
+    } else {
+      // must be a tweet, right?
+      emit.call(this, 'tweet', data);
+    }
+
+    this.resume();
+
+  });
+
+  return filter;
+};
 
 TweetPipe.prototype.stream = function (method, params, data_events, callback) {
 
@@ -112,88 +169,41 @@ TweetPipe.prototype.stream = function (method, params, data_events, callback) {
     }
   })
 
-  if (typeof data_events === 'undefined') {
-    data_events = ['tweet'];
-  }
-
-  // don't emit anything as 'data' if data_events is null or falsy
-  if (!data_events) data_events = [];
-
-  // don't allow 'all' and other events
-  if (data_events.indexOf('all') >= 0) data_events = ['all'];
-
-  var stream = es.through(function (data) {
-    // https://dev.twitter.com/docs/streaming-apis/messages
-
-    // to catch all
-    __emit(this, 'all', data, data_events);
-
-    // Public stream
-    if (data['delete']) {
-      __emit(this, 'delete', data['delete'], data_events);
-
-    } else if (data['limit']) {
-      __emit(this, 'limit', data['limit'], data_events);
-
-    } else if (data['scrub_geo']) {
-      __emit(this, 'scrub_geo', data['scrub_geo'], data_events);
-
-    } else if (data['status_withheld']) {
-      __emit(this, 'status_withheld', data['status_withheld'], data_events);
-
-    } else if (data['user_withheld']) {
-      __emit(this, 'user_withheld', data['user_withheld'], data_events);
-
-    // User stream
-    } else if (data['friends']) {
-      __emit(this, 'friends', data['friends'], data_events);
-
-    } else if (data['event']) {
-      __emit(this, 'event', data, data_events);
-
-    // TODO: support site stream messages
-
-    } else {
-      // must be a tweet, right?
-      __emit(this, 'tweet', data, data_events);
-    }
-
-    return true;
-  });
-
   var req = this.raw_stream(method, params);
 
+  var filter = this.filter(data_events);
+
   req.on('error', function (error) {
-    stream.emit('error', error);
+    filter.emit('error', error);
   });
 
   req.on('response', function (response) {
-    // Any response code greater then 200 from steam API is an error
+    // any response code greater then 200 from stream API is an error
     if (response.statusCode > 200) {
-      stream.destroy();
-      stream.emit('error', response.statusCode);
+      filter.emit('error', response.statusCode);
     }
   });
 
-  stream.on('close', function () { req.abort(); });
+  filter.on('error', function (error) { filter.end(); });
+  filter.on('close', function () { req.abort(); });
 
   // allow user to catch emitted events
-  if ( typeof callback === 'function' ) callback(stream);
+  if (typeof callback === 'function') callback(filter);
 
-  return this.options.gzip ? es.pipeline(
-    req,
-    this.unzip(),
-    this.parse(),
-    stream
-  ) : es.pipeline(
-    req,
-    this.parse(),
-    stream
-  );
+  var stream = this.options.gzip ? req
+      .pipe(this.unzip())
+      .pipe(this.parse())
+      .pipe(filter)
+    : req
+      .pipe(this.parse())
+      .pipe(filter)
+  ;
+
+  return stream;
 };
 
 // convenienve method for deflating gzipped streams
-TweetPipe.prototype.deflate = TweetPipe.prototype.unzip = zlib.createUnzip;
+TweetPipe.prototype.inflate = TweetPipe.prototype.unzip = zlib.createUnzip;
 
 // convenienve method for converting to JSON
 TweetPipe.prototype.parse = function () {
