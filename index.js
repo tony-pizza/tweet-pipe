@@ -192,9 +192,8 @@ TweetPipe.prototype.stream = function (method, params, data_events, callback) {
     // any response code greater then 200 from stream API is an error
     if (response.statusCode > 200) {
       filter.emit('error', 'HTTP ' + response.statusCode);
-      filter.end();
     }
-    response.on('error', function(error) {
+    response.on('error', function (error) {
       filter.emit('error', error);
     });
   });
