@@ -16,15 +16,15 @@ function merge (defaults) {
 function TweetPipe (oauth, options) {
 
   // oauth should look like:
-  // { consumer_key: null,
-  //   consumer_secret: null,
-  //   token: null,
-  //   token_secret: null }
+  // { consumer_key: 'abc',
+  //   consumer_secret: 'def',
+  //   token: 'ghi',
+  //   token_secret: 'jkl' }
 
   var defaults = {
-    stream_base: 'https://stream.twitter.com/1',
-    user_stream_base: 'https://userstream.twitter.com/2',
-    site_stream_base: 'https://sitestream.twitter.com/2b',
+    stream_base: 'https://stream.twitter.com/1.1',
+    user_stream_base: 'https://userstream.twitter.com/1.1',
+    site_stream_base: 'https://sitestream.twitter.com/1.1',
     gzip: true, // use twitter's gzipped stream
     headers: {
       'Accept': '*/*',
@@ -167,11 +167,22 @@ TweetPipe.prototype.stream = function (method, params, data_events, callback) {
     } else {
       data_events = arg;
     }
-  })
+  });
 
   var req = this.raw_stream(method, params);
 
   var filter = this.filter(data_events);
+
+  var _end = filter.end;
+  filter.end = function (data) {
+    req.abort();
+    process.nextTick(function () {
+      if (data)
+        _end.call(filter, data);
+      else
+        _end.call(filter);
+    });
+  };
 
   req.on('error', function (error) {
     filter.emit('error', error);
@@ -180,12 +191,17 @@ TweetPipe.prototype.stream = function (method, params, data_events, callback) {
   req.on('response', function (response) {
     // any response code greater then 200 from stream API is an error
     if (response.statusCode > 200) {
-      filter.emit('error', response.statusCode);
+      filter.emit('error', 'HTTP ' + response.statusCode);
+      filter.end();
     }
+    response.on('error', function(error) {
+      filter.emit('error', error);
+    });
   });
 
-  filter.on('error', function (error) { filter.end(); });
-  filter.on('close', function () { req.abort(); });
+  filter.on('error', function (error) {
+    console.log('error:', error)
+  });
 
   // allow user to catch emitted events
   if (typeof callback === 'function') callback(filter);
@@ -204,6 +220,7 @@ TweetPipe.prototype.stream = function (method, params, data_events, callback) {
 
 // convenienve method for deflating gzipped streams
 TweetPipe.prototype.inflate = TweetPipe.prototype.unzip = zlib.createUnzip;
+TweetPipe.prototype.gzip = zlib.createGzip;
 
 // convenienve method for converting to JSON
 TweetPipe.prototype.parse = function () {
