@@ -38,5 +38,5 @@ tp.stream('statuses/filter', params, false, function (stream) {
   });
 
   // stop the stream after 60 seconds
-  setTimeout(function () { stream.end(); }, 60*1000);
+  stream.timeout(60 * 1000);
 }).pipe(process.stdout); // tweet text piped to stdout

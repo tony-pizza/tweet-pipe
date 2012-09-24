@@ -175,6 +175,7 @@ TweetPipe.prototype.stream = function (method, params, data_events, callback) {
 
   var _end = filter.end;
   filter.end = function (data) {
+    if (filter.timeout) clearTimeout(filter.timeout);
     req.abort();
     process.nextTick(function () {
       if (data)
@@ -182,6 +183,13 @@ TweetPipe.prototype.stream = function (method, params, data_events, callback) {
       else
         _end.call(filter);
     });
+  };
+
+  // convenience method for stopping streams after duration
+  filter.timeout = function (ms) {
+    filter.timer = setTimeout(function () {
+      filter.end();
+    }, ms);
   };
 
   req.on('error', function (error) {
